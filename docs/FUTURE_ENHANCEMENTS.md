@@ -49,38 +49,7 @@ elif extreme_heat_days_increase > 30:
 
 ---
 
-### 2. FIRMS Wildfire Data Integration
-
-**Priority**: MEDIUM  
-**Estimated Effort**: 1-2 days  
-**Status**: Research complete, awaiting API key registration
-
-**Implementation Steps**:
-1. Register for FIRMS API key at https://firms.modaps.eosdis.nasa.gov/api/
-2. Add API key to `.env` file (not in version control)
-3. Create `fetch_firms_fire_data()` function
-4. Query historical fire data (2015-2023) for each location
-5. Calculate fire density (fires per year, fires per km²)
-6. Integrate into hazard severity scoring
-7. Replace ThinkHazard binary wildfire with quantitative assessment
-
-**Enhanced Wildfire Scoring**:
-```python
-fires_per_year = get_firms_fire_density(location, buffer_radius_km=50)
-
-if fires_per_year > 50:
-    wildfire_score = 5
-elif fires_per_year > 20:
-    wildfire_score = 3
-elif fires_per_year > 5:
-    wildfire_score = 1
-else:
-    wildfire_score = 0
-```
-
----
-
-### 3. Enhanced Scoring to 0-10 Scale
+### 2. Enhanced Scoring to 0-10 Scale
 
 **Priority**: MEDIUM  
 **Estimated Effort**: 1 day  
