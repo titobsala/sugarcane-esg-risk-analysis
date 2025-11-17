@@ -60,7 +60,7 @@ MUNICIPALITY_ADM2_CODES = {
     "MANDAGUAÇU/PR": None,
     "ITURAMA/MG": None,
     "BARRA DO BUGRES/MT": None,
-    "CORURIPE/AL": None,
+    "CORURIPE/AL": "6378",
     "SANTA RITA/PB": None,
 }
 

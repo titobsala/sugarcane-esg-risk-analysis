@@ -104,7 +104,7 @@ def render_sidebar():
     st.sidebar.markdown("---")
     
     # Run analysis button
-    if st.sidebar.button("🔄 Run Analysis", type="primary", use_container_width=True):
+    if st.sidebar.button("🔄 Run Analysis", type="primary", width='stretch'):
         run_analysis()
     
     if st.session_state.analysis_run:
@@ -161,7 +161,7 @@ def render_executive_summary():
     risk_data = st.session_state.risk_data
     
     # KPI Cards
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         st.metric(
@@ -192,6 +192,17 @@ def render_executive_summary():
             delta=None
         )
     
+    with col5:
+        # Data quality metric
+        avg_confidence = summary.get('avg_confidence_score', 0)
+        confidence_emoji = "🟢" if avg_confidence >= 80 else "🟡" if avg_confidence >= 50 else "🔴"
+        st.metric(
+            "Data Confidence",
+            f"{confidence_emoji} {avg_confidence:.0f}%",
+            delta=None,
+            help="Average data quality score across all locations (NASA POWER enhanced)"
+        )
+    
     st.markdown("---")
     
     # Two columns for visualizations
@@ -216,7 +227,7 @@ def render_executive_summary():
             title='Risk Distribution: Clients vs Suppliers',
             color_discrete_sequence=['#ff7f0e', '#2ca02c']
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     
     with col_right:
         st.subheader("Risk Category Distribution")
@@ -237,7 +248,7 @@ def render_executive_summary():
                 'Very Low': config.RISK_COLORS['very_low']
             }
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     
     # Top Risks Table
     st.subheader("🎯 Top 5 Highest Risk Locations")
@@ -255,8 +266,62 @@ def render_executive_summary():
             subset=['Weighted Risk Score'],
             cmap='Reds'
         ),
-        use_container_width=True
+        width='stretch'
     )
+    
+    # Data Quality Overview
+    st.subheader("📊 Data Quality Overview - NASA POWER Impact")
+    
+    if 'confidence_score' in risk_data.columns:
+        col_q1, col_q2, col_q3 = st.columns(3)
+        
+        high_conf = summary.get('high_confidence_count', 0)
+        medium_conf = summary.get('medium_confidence_count', 0)
+        low_conf = summary.get('low_confidence_count', 0)
+        
+        with col_q1:
+            st.metric(
+                "🟢 High Confidence",
+                f"{high_conf} locations",
+                help="Locations with ≥80% data confidence (full NASA POWER data)"
+            )
+        
+        with col_q2:
+            st.metric(
+                "🟡 Medium Confidence",
+                f"{medium_conf} locations",
+                help="Locations with 50-79% data confidence"
+            )
+        
+        with col_q3:
+            st.metric(
+                "🔴 Low Confidence",
+                f"{low_conf} locations",
+                help="Locations with <50% data confidence"
+            )
+        
+        # Show confidence distribution
+        confidence_dist = risk_data['confidence_level'].value_counts()
+        fig_conf = px.pie(
+            values=confidence_dist.values,
+            names=confidence_dist.index,
+            title='Data Confidence Distribution Across Portfolio',
+            color=confidence_dist.index,
+            color_discrete_map={
+                'High': '#2ca02c',
+                'Medium': '#ff7f0e',
+                'Low': '#d62728'
+            }
+        )
+        st.plotly_chart(fig_conf, use_container_width=True)
+        
+        st.info("""
+        **🛰️ NASA POWER Enhancement**: Locations with NASA POWER data (temperature, precipitation, 
+        consecutive dry days, extreme heat, solar radiation) achieve 80-90% confidence scores, 
+        providing more reliable risk assessments with agricultural-specific indicators.
+        """)
+    
+    st.markdown("---")
     
     # Geographic Distribution
     st.subheader("🗺️ Geographic Risk Distribution")
@@ -279,7 +344,7 @@ def render_executive_summary():
         text='Location Count'
     )
     fig.update_traces(texttemplate='%{text} locations', textposition='outside')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def render_climate_risk():
@@ -291,6 +356,13 @@ def render_climate_risk():
         return
     
     risk_data = st.session_state.risk_data
+    
+    # NASA POWER Enhancement Notice
+    st.success("""
+    **🛰️ Enhanced with NASA POWER Agricultural Meteorology Data**  
+    Climate risk assessment now includes: Consecutive Dry Days (drought), Extreme Heat Days, 
+    Growing Degree Days (crop development), and Solar Radiation (photosynthesis potential).
+    """)
     
     # Climate risk scatter plot
     st.subheader("Impact vs Likelihood Analysis")
@@ -324,7 +396,7 @@ def render_climate_risk():
     fig.add_annotation(x=1.25, y=25, text="Low Impact<br>Low Likelihood", showarrow=False, opacity=0.5)
     fig.add_annotation(x=3.75, y=25, text="Low Impact<br>High Likelihood", showarrow=False, opacity=0.5)
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
     
     # Climate changes by state
     st.subheader("Projected Climate Changes by State")
@@ -353,7 +425,7 @@ def render_climate_risk():
                 color='Temperature Change (°C)',
                 color_continuous_scale='Reds'
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
     
     with col2:
         # Precipitation changes
@@ -377,27 +449,234 @@ def render_climate_risk():
                 color='Precipitation Change (%)',
                 color_continuous_scale='RdBu_r'
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
+    
+    # NASA POWER Indicators Section
+    st.markdown("---")
+    st.subheader("🛰️ NASA POWER Agricultural Indicators")
+    
+    # Extract NASA POWER data
+    nasa_data_available = False
+    nasa_indicators = []
+    
+    for _, row in risk_data.iterrows():
+        if row['climate_changes'] and isinstance(row['climate_changes'], dict):
+            changes = row['climate_changes']
+            if 'consecutive_dry_days' in changes or 'extreme_heat_days' in changes:
+                nasa_data_available = True
+                
+                # Determine drought risk level
+                cdd = changes.get('consecutive_dry_days', 0)
+                drought_risk = "🔴 HIGH" if cdd > 30 else "🟡 MEDIUM" if cdd > 20 else "🟢 LOW"
+                
+                # Determine heat stress level
+                heat_days = changes.get('extreme_heat_days', 0)
+                heat_risk = "🔴 HIGH" if heat_days > 50 else "🟡 MEDIUM" if heat_days > 30 else "🟢 LOW"
+                
+                # GDD status
+                gdd = changes.get('growing_degree_days', 0)
+                gdd_status = "🟢 OPTIMAL" if 4000 <= gdd <= 6000 else "🟡 SUBOPTIMAL"
+                
+                # Solar radiation status
+                solar = changes.get('solar_radiation', 0)
+                solar_status = "🟢 EXCELLENT" if solar >= 18 else "🟡 ADEQUATE" if solar >= 15 else "🔴 LOW"
+                
+                nasa_indicators.append({
+                    'Location': row['location'],
+                    'State': row['state'],
+                    'Confidence': f"{row.get('confidence_score', 0):.0f}%",
+                    'CDD (days)': f"{cdd:.1f}",
+                    'Drought Risk': drought_risk,
+                    'Extreme Heat Days': f"{heat_days:.0f}",
+                    'Heat Stress': heat_risk,
+                    'GDD': f"{gdd:.0f}",
+                    'GDD Status': gdd_status,
+                    'Solar (MJ/m²/day)': f"{solar:.2f}",
+                    'Solar Status': solar_status
+                })
+    
+    if nasa_data_available and nasa_indicators:
+        st.markdown("""
+        **Agricultural Meteorology Indicators** - Derived from NASA POWER satellite data (2000-2020 baseline):
+        - **CDD**: Consecutive Dry Days - indicates drought stress potential
+        - **Extreme Heat Days**: Days with temperature >35°C - indicates heat stress
+        - **GDD**: Growing Degree Days - optimal range for sugarcane is 4000-6000
+        - **Solar Radiation**: Photosynthesis potential - optimal >18 MJ/m²/day
+        """)
+        
+        nasa_df = pd.DataFrame(nasa_indicators)
+        
+        # Create tabs for different views
+        tab_table, tab_drought, tab_heat, tab_gdd, tab_solar = st.tabs([
+            "📋 Full Table", 
+            "🌵 Drought Risk", 
+            "🌡️ Heat Stress", 
+            "🌱 Growing Conditions",
+            "☀️ Solar Radiation"
+        ])
+        
+        with tab_table:
+            st.dataframe(nasa_df, use_container_width=True, hide_index=True)
+            
+            # Download button
+            csv = nasa_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download NASA POWER Data",
+                data=csv,
+                file_name="nasa_power_indicators.csv",
+                mime="text/csv"
+            )
+        
+        with tab_drought:
+            # Drought risk chart
+            nasa_df_sorted = nasa_df.copy()
+            nasa_df_sorted['CDD_numeric'] = nasa_df_sorted['CDD (days)'].astype(float)
+            nasa_df_sorted = nasa_df_sorted.sort_values('CDD_numeric', ascending=False)
+            
+            fig_drought = px.bar(
+                nasa_df_sorted.head(15),
+                x='Location',
+                y='CDD_numeric',
+                color='Drought Risk',
+                title='Top 15 Locations by Drought Risk (Consecutive Dry Days)',
+                labels={'CDD_numeric': 'Consecutive Dry Days'},
+                color_discrete_map={
+                    '🔴 HIGH': '#d62728',
+                    '🟡 MEDIUM': '#ff7f0e',
+                    '🟢 LOW': '#2ca02c'
+                }
+            )
+            fig_drought.add_hline(y=30, line_dash="dash", line_color="red", 
+                                 annotation_text="HIGH risk threshold (30 days)")
+            fig_drought.add_hline(y=20, line_dash="dash", line_color="orange",
+                                 annotation_text="MEDIUM risk threshold (20 days)")
+            st.plotly_chart(fig_drought, use_container_width=True)
+        
+        with tab_heat:
+            # Heat stress chart
+            nasa_df_sorted = nasa_df.copy()
+            nasa_df_sorted['Heat_numeric'] = nasa_df_sorted['Extreme Heat Days'].astype(float)
+            nasa_df_sorted = nasa_df_sorted.sort_values('Heat_numeric', ascending=False)
+            
+            fig_heat = px.bar(
+                nasa_df_sorted.head(15),
+                x='Location',
+                y='Heat_numeric',
+                color='Heat Stress',
+                title='Top 15 Locations by Heat Stress (Days >35°C per year)',
+                labels={'Heat_numeric': 'Extreme Heat Days'},
+                color_discrete_map={
+                    '🔴 HIGH': '#d62728',
+                    '🟡 MEDIUM': '#ff7f0e',
+                    '🟢 LOW': '#2ca02c'
+                }
+            )
+            fig_heat.add_hline(y=50, line_dash="dash", line_color="red",
+                              annotation_text="HIGH risk threshold (50 days)")
+            fig_heat.add_hline(y=30, line_dash="dash", line_color="orange",
+                              annotation_text="MEDIUM risk threshold (30 days)")
+            st.plotly_chart(fig_heat, use_container_width=True)
+        
+        with tab_gdd:
+            # Growing degree days chart
+            nasa_df_temp = nasa_df.copy()
+            nasa_df_temp['GDD_numeric'] = nasa_df_temp['GDD'].astype(float)
+            
+            fig_gdd = px.scatter(
+                nasa_df_temp,
+                x='Location',
+                y='GDD_numeric',
+                color='GDD Status',
+                size='GDD_numeric',
+                title='Growing Degree Days by Location (Base Temperature: 10°C)',
+                labels={'GDD_numeric': 'Growing Degree Days'},
+                color_discrete_map={
+                    '🟢 OPTIMAL': '#2ca02c',
+                    '🟡 SUBOPTIMAL': '#ff7f0e'
+                }
+            )
+            fig_gdd.add_hrect(y0=4000, y1=6000, fillcolor="green", opacity=0.1,
+                             annotation_text="Optimal range for sugarcane", annotation_position="top left")
+            st.plotly_chart(fig_gdd, use_container_width=True)
+            
+            st.info("""
+            **Growing Degree Days (GDD)** measure heat accumulation for crop development.
+            Sugarcane optimal range: 4000-6000 degree-days annually.
+            - Too low: Slower growth, extended maturation
+            - Too high: Increased stress, reduced sucrose accumulation
+            """)
+        
+        with tab_solar:
+            # Solar radiation chart
+            nasa_df_temp = nasa_df.copy()
+            nasa_df_temp['Solar_numeric'] = nasa_df_temp['Solar (MJ/m²/day)'].astype(float)
+            nasa_df_temp = nasa_df_temp.sort_values('Solar_numeric', ascending=True)
+            
+            fig_solar = px.bar(
+                nasa_df_temp,
+                x='Location',
+                y='Solar_numeric',
+                color='Solar Status',
+                title='Solar Radiation by Location (Annual Average)',
+                labels={'Solar_numeric': 'Solar Radiation (MJ/m²/day)'},
+                color_discrete_map={
+                    '🟢 EXCELLENT': '#2ca02c',
+                    '🟡 ADEQUATE': '#ff7f0e',
+                    '🔴 LOW': '#d62728'
+                }
+            )
+            fig_solar.add_hline(y=18, line_dash="dash", line_color="green",
+                               annotation_text="Optimal (>18 MJ/m²/day)")
+            fig_solar.add_hline(y=15, line_dash="dash", line_color="orange",
+                               annotation_text="Adequate threshold (15 MJ/m²/day)")
+            st.plotly_chart(fig_solar, use_container_width=True)
+            
+            st.info("""
+            **Solar Radiation** is critical for photosynthesis and sugar accumulation.
+            Higher radiation = better productivity (up to thermal limits).
+            - Excellent: >18 MJ/m²/day
+            - Adequate: 15-18 MJ/m²/day
+            - Low: <15 MJ/m²/day (may limit yields)
+            """)
+    
+    else:
+        st.warning("NASA POWER data not yet available for this analysis. Re-run with NASA_POWER_ENABLED=True.")
+    
+    st.markdown("---")
     
     # Detailed data table
     st.subheader("Detailed Climate Risk Data")
     
-    climate_table = risk_data[[
-        'location', 'type', 'state', 'climate_likelihood', 
-        'climate_category', 'impact_score', 'climate_weighted_risk'
-    ]].copy()
-    
-    climate_table.columns = [
-        'Location', 'Type', 'State', 'Climate Likelihood',
-        'Risk Category', 'Impact Score', 'Weighted Risk'
-    ]
+    # Include confidence if available
+    if 'confidence_score' in risk_data.columns:
+        climate_table = risk_data[[
+            'location', 'type', 'state', 'climate_likelihood', 
+            'confidence_level', 'confidence_score',
+            'climate_category', 'impact_score', 'climate_weighted_risk'
+        ]].copy()
+        
+        climate_table.columns = [
+            'Location', 'Type', 'State', 'Climate Likelihood',
+            'Data Quality', 'Confidence %',
+            'Risk Category', 'Impact Score', 'Weighted Risk'
+        ]
+    else:
+        climate_table = risk_data[[
+            'location', 'type', 'state', 'climate_likelihood', 
+            'climate_category', 'impact_score', 'climate_weighted_risk'
+        ]].copy()
+        
+        climate_table.columns = [
+            'Location', 'Type', 'State', 'Climate Likelihood',
+            'Risk Category', 'Impact Score', 'Weighted Risk'
+        ]
     
     st.dataframe(
         climate_table.style.background_gradient(
             subset=['Climate Likelihood', 'Weighted Risk'],
             cmap='Reds'
         ),
-        use_container_width=True
+        width='stretch'
     )
     
     # Download button
@@ -482,7 +761,7 @@ def render_natural_hazards():
         )
         fig.update_xaxes(side="bottom")
         fig.update_layout(height=600)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         
         # Hazard distribution
         st.subheader("Hazard Type Distribution")
@@ -524,7 +803,7 @@ def render_natural_hazards():
                     },
                     barmode='stack'
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
     else:
         st.warning("No hazard data available. This may indicate API issues or missing ADM codes.")
     
@@ -546,7 +825,7 @@ def render_natural_hazards():
             subset=['Hazard Severity', 'Weighted Risk'],
             cmap='Reds'
         ),
-        use_container_width=True
+        width='stretch'
     )
 
 
@@ -635,7 +914,7 @@ def render_monte_carlo():
         height=500
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
     
     # Interactive location selector
     st.subheader("Detailed Simulation Results")
@@ -687,14 +966,14 @@ def render_monte_carlo():
             height=400
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     
     with col_right:
         # Summary statistics
         st.markdown("**Summary Statistics**")
         
         stats_df = mc.create_mc_summary_stats(selected_mc.to_dict())
-        st.dataframe(stats_df, use_container_width=True, hide_index=True)
+        st.dataframe(stats_df, width='stretch', hide_index=True)
     
     # Loss exceedance curve
     st.subheader("Loss Exceedance Curves")
@@ -721,7 +1000,7 @@ def render_monte_carlo():
         height=500
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
     
     # Full results table
     st.subheader("Complete Monte Carlo Results")
@@ -749,7 +1028,7 @@ def render_monte_carlo():
             'VaR 95%': '{:.2f}',
             'VaR 99%': '{:.2f}'
         }),
-        use_container_width=True
+        width='stretch'
     )
 
 
@@ -857,7 +1136,7 @@ def render_value_chain():
         height=600
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
     
     # Detailed breakdowns
     col_left, col_right = st.columns(2)
@@ -876,7 +1155,7 @@ def render_value_chain():
                 subset=['Weighted Risk'],
                 cmap='Greens'
             ),
-            use_container_width=True,
+            width='stretch',
             hide_index=True
         )
     
@@ -894,7 +1173,7 @@ def render_value_chain():
                 subset=['Weighted Risk'],
                 cmap='Oranges'
             ),
-            use_container_width=True,
+            width='stretch',
             hide_index=True
         )
     
@@ -1043,9 +1322,17 @@ def render_sensitivity_analysis():
             stressed_top10,
             on='Location',
             how='outer'
-        ).fillna('-')
-        
-        st.dataframe(comparison, use_container_width=True, hide_index=True)
+        )
+
+        # Convert to display-friendly format (avoid mixed data types for Arrow serialization)
+        comparison_display = comparison.copy()
+        for col in comparison_display.columns:
+            if col != 'Location':
+                comparison_display[col] = comparison_display[col].apply(
+                    lambda x: f"{x:.2f}" if pd.notna(x) and isinstance(x, (int, float)) else str(x) if pd.notna(x) else '-'
+                )
+
+        st.dataframe(comparison_display, width='stretch', hide_index=True)
         
         # Visual comparison
         fig = go.Figure()
@@ -1072,7 +1359,7 @@ def render_sensitivity_analysis():
             height=500
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         
         # Analysis insights
         st.subheader("Key Insights")
@@ -1133,8 +1420,8 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: gray;'>
-        <p>Data Sources: World Bank Climate Change Knowledge Portal (CCKP) | ThinkHazard! (GFDRR)</p>
-        <p>ESG Risk Analysis Tool v1.0</p>
+        <p>Data Sources: World Bank CCKP | ThinkHazard! (GFDRR) | NASA POWER Agricultural Meteorology</p>
+        <p>ESG Risk Analysis Tool v2.0 - Enhanced with NASA POWER Integration</p>
     </div>
     """, unsafe_allow_html=True)
 
