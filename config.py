@@ -37,9 +37,10 @@ CLIENT_LOCATIONS = {
     "MINEIROS/GO": {"impact_percent": 0.08},
     "CAARAPÓ/MS": {"impact_percent": 0.035},
     "COLORADO/PR": {"impact_percent": 0.045},
-    "ITURAMA/MG": {"impact_percent": 0.03},
+    "ITURAMA/MG": {"impact_percent": 0.01},
     "BARRA DO BUGRES/MT": {"impact_percent": 0.02},
     "CORURIPE/AL": {"impact_percent": 0.01},
+    "Pompeu/MG": {"impact_percent": 0.02},
 }
 
 # --- API CONFIGURATION ---
