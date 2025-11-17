@@ -136,6 +136,7 @@ def calculate_portfolio_summary(
 ) -> Dict:
     """
     Calculate portfolio-level summary statistics
+    Enhanced with NASA POWER data quality metrics
     
     Args:
         risk_data: DataFrame with risk data
@@ -169,6 +170,13 @@ def calculate_portfolio_summary(
     summary['total_climate_weighted_risk'] = risk_data['climate_weighted_risk'].sum()
     summary['total_hazard_weighted_risk'] = risk_data['hazard_weighted_risk'].sum()
     summary['total_aggregate_weighted_risk'] = risk_data['aggregate_weighted_risk'].sum()
+    
+    # Data quality metrics (if confidence_score is available)
+    if 'confidence_score' in risk_data.columns:
+        summary['avg_confidence_score'] = risk_data['confidence_score'].mean()
+        summary['high_confidence_count'] = len(risk_data[risk_data['confidence_score'] >= 80])
+        summary['medium_confidence_count'] = len(risk_data[(risk_data['confidence_score'] >= 50) & (risk_data['confidence_score'] < 80)])
+        summary['low_confidence_count'] = len(risk_data[risk_data['confidence_score'] < 50])
     
     # Top risks
     summary['top_5_climate_risks'] = risk_data.nlargest(5, 'climate_weighted_risk')[

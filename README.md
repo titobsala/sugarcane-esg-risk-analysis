@@ -11,12 +11,32 @@ Comprehensive climate and natural hazard risk assessment for sugarcane supply ch
 - 💼 **[INTERPRETATION_GUIDE.md](docs/INTERPRETATION_GUIDE.md)** - How to use results for business decisions
 - 🌐 **[DATA_SOURCES.md](docs/DATA_SOURCES.md)** - API documentation and data sources
 
+## 🆕 What's New - Phase 2 Complete (November 2025)
+
+**NASA POWER Integration Now Live!**
+
+The ESG Risk Analysis Tool has been enhanced with NASA POWER agricultural meteorology data:
+
+- ✅ **5 New Climate Variables**: Temperature, max temperature, precipitation, consecutive dry days, and solar radiation
+- ✅ **Enhanced Risk Scoring**: Drought stress (CDD) and extreme heat indicators now quantified
+- ✅ **Growing Degree Days**: Agricultural phenology modeling for crop development assessment
+- ✅ **Data Confidence Scoring**: Automated quality metrics (0-100%) for each location
+- ✅ **Improved Accuracy**: Confidence levels increased from 60% to 90% with NASA POWER data
+
+**Impact**: Climate likelihood scores are now more nuanced and location-specific, with better differentiation between drought-prone and heat-stressed regions.
+
+See [IMPLEMENTATION_SUMMARY.md](docs/IMPLEMENTATION_SUMMARY.md#phase-2-nasa-power-api-integration) for complete details.
+
+---
+
 ## Overview
 
 This tool provides integrated ESG (Environmental, Social, Governance) risk analysis combining:
 - **Climate Risk Analysis**: Temperature and precipitation projections from World Bank CCKP API
+- **Enhanced Agricultural Indicators**: NASA POWER data for drought stress (CDD), extreme heat, growing degree days, and solar radiation
 - **Natural Hazard Assessment**: Multi-hazard data from ThinkHazard! (floods, earthquakes, landslides, etc.)
 - **Monte Carlo Simulations**: Probabilistic loss modeling across 10,000+ scenarios
+- **Data Confidence Scoring**: Automated quality assessment with 0-100% confidence levels
 - **Interactive Dashboard**: Visual reporting with Streamlit
 - **Comprehensive Documentation**: Scientific basis, methodology, and interpretation guides
 
@@ -29,10 +49,16 @@ This tool provides integrated ESG (Environmental, Social, Governance) risk analy
 - Value chain overview
 
 ### 🌡️ Climate Risk Analysis
-- Temperature and precipitation change projections
+- Temperature and precipitation change projections (CCKP)
+- Enhanced agricultural meteorology indicators (NASA POWER):
+  - Consecutive Dry Days (CDD) for drought assessment
+  - Extreme heat days (>35°C) estimation
+  - Growing Degree Days (GDD) for crop development
+  - Solar radiation for photosynthesis potential
 - Impact vs Likelihood scatter analysis
 - State-level climate trends
-- Risk categorization
+- Risk categorization with 0-5 scale
+- Data confidence levels (High/Medium/Low)
 
 ### ⚠️ Natural Hazards
 - Multi-hazard matrix (floods, earthquakes, landslides, wildfires, drought)

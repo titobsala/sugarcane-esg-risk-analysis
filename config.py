@@ -54,21 +54,23 @@ THINKHAZARD_BASE_URL = "https://thinkhazard.org/en"
 THINKHAZARD_TIMEOUT = 30
 THINKHAZARD_RATE_LIMIT_DELAY = 0.5  # seconds between requests
 
-# NASA POWER API (proposed for Phase 2 implementation)
+# NASA POWER API (Phase 2 implementation - ENABLED)
 NASA_POWER_BASE_URL = "https://power.larc.nasa.gov/api/temporal/climatology/point"
 NASA_POWER_TIMEOUT = 30
 NASA_POWER_RATE_LIMIT_DELAY = 0.5  # seconds between requests
-NASA_POWER_ENABLED = False  # Set to True when implemented
+NASA_POWER_ENABLED = True  # Enabled for enhanced climate risk assessment
 
 # NASA POWER Variables to fetch
-NASA_POWER_VARIABLES = {
-    'T2M': 'Temperature at 2 meters',
-    'T2M_MAX': 'Maximum Temperature',
-    'PRECTOTCORR': 'Precipitation',
-    'CDD': 'Consecutive Dry Days',
-    'ALLSKY_SFC_SW_DWN': 'Solar Radiation',
-    'T2M_MAX_GT35': 'Days with Temperature > 35°C',
-}
+# See docs/DATA_SOURCES.md for detailed descriptions
+NASA_POWER_VARIABLES = [
+    'T2M',                  # Temperature at 2 meters (°C)
+    'T2M_MAX',              # Maximum Temperature (°C)
+    'PRECTOTCORR',          # Precipitation (mm/day)
+    'CDD',                  # Consecutive Dry Days (days)
+    'ALLSKY_SFC_SW_DWN',    # Solar Radiation (MJ/m²/day)
+]
+
+# Note: T2M_MAX_GT35 not always available, will be derived from T2M_MAX data
 
 # API Retry Configuration
 MAX_RETRIES = 3
