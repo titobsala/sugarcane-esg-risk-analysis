@@ -1,0 +1,52 @@
+{
+  "country": {
+    "BRA": {
+      "N": "Brazil",
+      "S": {
+        "BRA.37665": "Acre",
+        "BRA.37666": "Alagoas",
+        "BRA.37667": "Amapa",
+        "BRA.37668": "Amazonas",
+        "BRA.37669": "Bahia",
+        "BRA.37670": "Ceara",
+        "BRA.37671": "Distrito Federal",
+        "BRA.37672": "Espirito Santo",
+        "BRA.37673": "Goias",
+        "BRA.37674": "Maranhao",
+        "BRA.37675": "Mato Grosso",
+        "BRA.37676": "Mato Grosso Do Sul",
+        "BRA.37677": "Minas Gerais",
+        "BRA.37678": "Para",
+        "BRA.37679": "Paraiba",
+        "BRA.37680": "Parana",
+        "BRA.37681": "Pernambuco",
+        "BRA.37682": "Piaui",
+        "BRA.37683": "Rio De Janeiro",
+        "BRA.37684": "Rio Grande Do Norte",
+        "BRA.37685": "Rio Grande Do Sul",
+        "BRA.37686": "Rondonia",
+        "BRA.37687": "Roraima",
+        "BRA.37688": "Santa Catarina",
+        "BRA.37689": "Sao Paulo",
+        "BRA.37690": "Sergipe",
+        "BRA.37691": "Tocantins"
+      }
+    }
+  },
+  "region": {
+    "EAP": { "N": "East Asia & Pacific" },
+    "ECA": { "N": "Europe & Central Asia" },
+    "LCA": { "N": "Latin America & Caribbean" },
+    "MNA": { "N": "Middle East & North Africa" },
+    "NAC": { "N": "North America" },
+    "SAR": { "N": "South Asia" },
+    "SSA": { "N": "Sub-Saharan Africa" }
+  },
+  "global": {
+    "global_countries": { "N": "Global Countries" },
+    "global_countries_subnationals": { "N": "Global Countries & Subnationals" },
+    "global_watersheds": { "N": "Global Watersheds" },
+    "global_EEZ": { "N": "Global Exclusive Economic Zones" },
+    "global_oceanbasins": { "N": "Global Ocean Basins" }
+  }
+}
