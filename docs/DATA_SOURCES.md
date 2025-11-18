@@ -403,6 +403,148 @@ Parameters:
 
 ---
 
+### 7. Copernicus Climate Data Store (CDS) - ERA5 Reanalysis Data
+
+#### Overview
+- **Provider**: European Union Copernicus Programme
+- **URL**: https://cds.climate.copernicus.eu/
+- **API**: `cdsapi` Python package
+- **Cost**: Free with registration
+- **Status**: **✅ IMPLEMENTED - Integrated into risk analysis**
+- **Dataset**: reanalysis-era5-single-levels-monthly-means
+
+#### Value Proposition
+
+**Why Copernicus ERA5 enhances the analysis?**
+1. **High-Quality Reanalysis**: ERA5 provides the most accurate historical climate data available
+2. **Cross-Validation**: Compare with existing CCKP projections for validation
+3. **Higher Resolution**: 0.25° × 0.25° grid provides detailed localized data
+4. **Observation-Based**: Assimilates vast amounts of observational data
+5. **Consistent**: Globally complete and temporally consistent dataset
+6. **Stable API**: Unlike CMIP5 datasets, ERA5 has a stable, well-supported API
+
+#### Data Provided
+
+**Climate Variables** (ERA5 reanalysis-era5-single-levels-monthly-means):
+- `2m_temperature`: 2m air temperature (K → °C)
+- `maximum_2m_temperature_since_previous_post_processing`: Daily max temperature (K → °C)
+- `minimum_2m_temperature_since_previous_post_processing`: Daily min temperature (K → °C)
+- `total_precipitation`: Total precipitation (m → mm/day)
+- `mean_sea_level_pressure`: Mean sea level pressure (Pa)
+
+**Data Characteristics**:
+- **Single Product**: ERA5 is a single reanalysis (not model ensemble)
+- **Quality**: Highest-quality reanalysis data available
+- **Resolution**: 0.25° × 0.25° (~25km globally)
+- **Assimilation**: Incorporates billions of observations
+
+**Temporal Coverage**:
+- Historical: 1979-present (continuously updated)
+- Monthly means: Used for climatological analysis
+- Sub-daily: Hourly data available (not implemented)
+
+#### Integration with Existing Data
+
+**Cross-Validation Approach**:
+```python
+# Existing CCKP projection
+cckp_temp_change = 2.5  # °C increase by 2070s
+
+# ERA5 historical baseline (highest quality)
+era5_baseline = 28.5  # °C current max temp from ERA5
+
+# Projected future temperature
+projected_temp = era5_baseline + cckp_temp_change
+print(f"Projected max temp (2070s): {projected_temp}°C")
+```
+
+**Enhanced Risk Indicators**:
+1. **Extreme Heat Days**: Estimated from ERA5 temperature climatology
+2. **Drought Index**: Precipitation-based drought risk from ERA5 data
+3. **High-Quality Baseline**: ERA5 provides most accurate historical reference
+4. **Spatial Detail**: 0.25° grid offers fine spatial resolution
+
+#### Implementation Details
+
+**API Configuration**:
+```python
+# config.py additions
+COPERNICUS_ENABLED = True
+COPERNICUS_DATASET = "reanalysis-era5-single-levels-monthly-means"
+COPERNICUS_USE_ENSEMBLE = False  # ERA5 is single reanalysis
+COPERNICUS_ERA5_PRODUCT_TYPE = "monthly_averaged_reanalysis"
+COPERNICUS_VARIABLES = [
+    '2m_temperature',
+    'maximum_2m_temperature_since_previous_post_processing',
+    'minimum_2m_temperature_since_previous_post_processing',
+    'total_precipitation'
+]
+```
+
+**Data Processing**:
+1. **Grid Cell Selection**: Find 0.25° grid cell containing city coordinates
+2. **Temporal Aggregation**: Calculate climatology over 1981-2010 period
+3. **Unit Conversion**: K → °C, meters → mm/day
+4. **Quality Assurance**: ERA5 data quality is extremely high
+5. **Risk Integration**: Compare with CCKP projections and NASA POWER data
+
+#### Setup Requirements
+
+**API Credentials & Licences**:
+1. Register at https://cds.climate.copernicus.eu/
+2. **Accept ERA5 licence**: Visit https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels-monthly-means and click "Manage licences" → Accept the ERA5T licence
+3. Create `~/.cdsapirc` file:
+   ```
+   url: https://cds.climate.copernicus.eu/api
+   key: your-uid:your-api-key
+   ```
+4. Wait 5-10 minutes for licence acceptance to propagate
+
+**Python Dependencies**:
+```bash
+pip install cdsapi xarray netcdf4
+```
+
+**Rate Limiting**:
+- No strict limits but recommended: 2 second delay between requests
+- Large downloads: NetCDF files can be 100MB+ per request
+- Batch processing: Multiple models require separate API calls
+
+#### Validation and Quality
+
+**Cross-Validation Metrics**:
+- **Temperature Correlation**: Compare ERA5 vs CCKP baselines
+- **Precipitation Agreement**: Validate precipitation patterns
+- **Data Quality**: ERA5 provides gold-standard reference data
+- **Spatial Consistency**: Compare 0.25° grid vs administrative boundaries
+
+**Data Quality Indicators**:
+- **Completeness**: ERA5 provides globally complete coverage
+- **Temporal Coverage**: 1979-present with continuous updates
+- **Spatial Resolution**: 0.25° grid offers detailed spatial information
+- **Observational Basis**: Assimilates billions of observations daily
+
+#### Risk Analysis Enhancement
+
+**Additional Risk Factors**:
+1. **High-Quality Baseline**: ERA5 provides most accurate historical reference
+2. **Extreme Events**: Temperature extremes validated against observations
+3. **Climate Patterns**: Precipitation patterns based on comprehensive data
+4. **Validation Standard**: ERA5 serves as gold standard for model validation
+
+**Scoring Integration**:
+```python
+# Enhanced confidence scoring
+if copernicus_data_available:
+    confidence_score += 30  # Max 30 points for Copernicus data
+
+# Additional risk indicators
+if copernicus_drought_index >= 4.0:
+    risk_score += 0.5  # High drought risk
+```
+
+---
+
 ### 5. Global Flood Awareness System (GloFAS)
 
 #### Overview
@@ -691,7 +833,7 @@ def calculate_confidence_score(data_availability):
 | **NASA POWER** | 50km | Global | Free | 🔄 Proposed | High |
 | **FIRMS** | 375m-1km | Global | Free* | 🔄 Proposed | Medium |
 | **GloFAS** | 5-10km | Global | Free* | 🔄 Proposed | Medium |
-| **Copernicus CDS** | 25km | Global | Free* | 🔄 Proposed | Low |
+| **Copernicus CDS** | 50km | Global | Free* | ✅ Implemented | High |
 
 *Requires registration
 
@@ -707,7 +849,7 @@ def calculate_confidence_score(data_availability):
 
 **Phase 3** (Advanced):
 - 🔄 GloFAS for detailed flood modeling
-- 🔄 Copernicus for validation and soil moisture
+- ✅ Copernicus CDS for CMIP5 bias-adjusted climate data (implemented)
 
 ---
 

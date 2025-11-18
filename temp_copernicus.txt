@@ -1,0 +1,597 @@
+# Copernicus integration disabled due to 11GB+ file sizes
+# Keeping minimal stubs for API compatibility
+
+def fetch_copernicus_climate_data(
+    origin: str = "gfdl_esm2m_model",
+    experiment: str = "historical",
+    temporal_aggregation: str = "10_day",
+    periods: List[str] = None,
+    versions: List[str] = None,
+    variables: List[str] = None,
+    retry_count: int = 0
+) -> Optional[str]:
+    """
+    Fetch sis-agroclimatic-indicators data using the exact API call format requested.
+
+    This downloads the raw data file to a temporary location and returns the file path.
+    The caller is responsible for processing the downloaded data.
+
+    Args:
+        origin: Climate model (e.g., "gfdl_esm2m_model")
+        experiment: Experiment type (e.g., "historical")
+        temporal_aggregation: Time aggregation (e.g., "10_day")
+        periods: List of period strings (e.g., ["195101_198012", "198101_201012"])
+        versions: List of version strings (e.g., ["1_0", "1_1"])
+        variables: List of variable names to fetch
+        retry_count: Current retry attempt
+
+    Returns:
+        Path to downloaded file, or None if failed
+    """
+    if periods is None:
+        periods = ["195101_198012", "198101_201012"]
+    if versions is None:
+        versions = ["1_0", "1_1"]
+    if variables is None:
+        variables = [
+            "biologically_effective_degree_days",
+            "mean_of_diurnal_temperature_range",
+            "frost_days",
+            "ice_days",
+            "heavy_precipitation_days",
+            "very_heavy_precipitation_days",
+            "precipitation_sum",
+            "wet_days",
+            "simple_daily_intensity_index",
+            "summer_days",
+            "mean_of_daily_mean_temperature",
+            "mean_of_daily_minimum_temperature",
+            "minimum_of_daily_minimum_temperature",
+            "maximum_of_daily_minimum_temperature",
+            "tropical_nights",
+            "mean_of_daily_maximum_temperature",
+            "minimum_of_daily_maximum_temperature",
+            "maximum_of_daily_maximum_temperature"
+        ]
+
+    try:
+        import cdsapi
+        import tempfile
+        import os
+
+        # Initialize CDS client
+        client = cdsapi.Client()
+
+        # Build the exact request as specified by user
+        request = {
+            "origin": origin,
+            "variable": variables,
+            "experiment": experiment,
+            "temporal_aggregation": temporal_aggregation,
+            "period": periods,
+            "version": versions
+        }
+
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_file:
+            temp_filename = temp_file.name
+
+        print(f"  > Downloading sis-agroclimatic-indicators data...")
+        print(f"    Origin: {origin}, Experiment: {experiment}")
+        print(f"    Variables: {len(variables)}, Periods: {len(periods)}")
+
+        # Download data
+        time.sleep(config.COPERNICUS_RATE_LIMIT_DELAY)
+        client.retrieve("sis-agroclimatic-indicators", request).download(temp_filename)
+
+        print(f"  ✅ Successfully downloaded sis-agroclimatic-indicators data")
+        print(f"    File size: {os.path.getsize(temp_filename)} bytes")
+
+        return temp_filename
+
+    except Exception as e:
+        if retry_count < config.MAX_RETRIES:
+            wait_time = config.RETRY_BACKOFF_FACTOR ** retry_count
+            print(f"  sis-agroclimatic-indicators API error, retrying in {wait_time}s: {e}")
+            time.sleep(wait_time)
+            return fetch_sis_agroclimatic_indicators(
+                origin, experiment, temporal_aggregation, periods, versions, variables, retry_count + 1
+            )
+        else:
+            print(f"sis-agroclimatic-indicators API failed after {config.MAX_RETRIES} retries: {e}")
+            return None
+
+
+def process_sis_agroclimatic_data(data_file: str, lat: float, lon: float) -> Dict[str, Optional[float]]:
+    """
+    Process downloaded sis-agroclimatic-indicators NetCDF data for a specific location.
+
+    Args:
+        data_file: Path to the downloaded ZIP file
+        lat: Latitude of the location
+        lon: Longitude of the location
+
+    Returns:
+        Dictionary with agroclimatic indicator values for the location
+    """
+    import zipfile
+    import tempfile
+    import xarray as xr
+    import numpy as np
+    import os
+
+    results = {var: None for var in config.SIS_AGROCLIMATIC_VARIABLES}
+
+    try:
+        # Create temporary directory for extraction
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Unzip the file
+            with zipfile.ZipFile(data_file, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+
+            # Find NetCDF files
+            nc_files = []
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    if file.endswith('.nc'):
+                        nc_files.append(os.path.join(root, file))
+
+            if not nc_files:
+                print(f"  ❌ No NetCDF files found in {data_file}")
+                return results
+
+            print(f"  📁 Found {len(nc_files)} NetCDF files")
+
+            # Process each NetCDF file
+            for nc_file in nc_files:
+                try:
+                    ds = xr.open_dataset(nc_file)
+
+                    # Find nearest grid point to our location
+                    if 'latitude' in ds.dims and 'longitude' in ds.dims:
+                        # Get coordinate arrays
+                        lats = ds.latitude.values
+                        lons = ds.longitude.values
+
+                        # Handle longitude wrapping (0-360 vs -180-180)
+                        if lons.max() > 180:  # 0-360 range
+                            lon_normalized = lon if lon >= 0 else lon + 360
+                        else:  # -180-180 range
+                            lon_normalized = lon
+
+                        # Find nearest indices
+                        lat_idx = np.abs(lats - lat).argmin()
+                        lon_idx = np.abs(lons - lon_normalized).argmin()
+
+                        # Extract data for this location
+                        for var in config.SIS_AGROCLIMATIC_VARIABLES:
+                            if var in ds.variables:
+                                try:
+                                    # Get value at nearest grid point
+                                    value = ds[var].isel(latitude=lat_idx, longitude=lon_idx)
+
+                                    # Handle time dimension - take mean over all time steps
+                                    if 'time' in value.dims:
+                                        value = value.mean(dim='time')
+
+                                    value = float(value.values)
+
+                                    # Store if not already set or update with new value
+                                    if results[var] is None:
+                                        results[var] = value
+                                    else:
+                                        # If multiple files, could take mean or last value
+                                        results[var] = value  # For now, take last value
+
+                                except Exception as e:
+                                    print(f"  ⚠️  Error extracting {var} from {os.path.basename(nc_file)}: {e}")
+                                    continue
+
+                    ds.close()
+
+                except Exception as e:
+                    print(f"  ⚠️  Error processing {os.path.basename(nc_file)}: {e}")
+                    continue
+
+            # Report results
+            valid_vars = sum(1 for v in results.values() if v is not None)
+            print(f"  ✅ Extracted {valid_vars}/{len(config.SIS_AGROCLIMATIC_VARIABLES)} variables for location ({lat}, {lon})")
+
+            return results
+
+    except ImportError:
+        print("  ❌ xarray not available for NetCDF processing")
+        return results
+    except Exception as e:
+        print(f"  ❌ Error processing sis-agroclimatic data: {e}")
+        return results
+
+
+def fetch_and_process_sis_agroclimatic_data(lat: float, lon: float) -> Dict[str, Optional[float]]:
+    """
+    Complete workflow: download sis-agroclimatic-indicators data and extract values for a location.
+
+    Args:
+        lat: Latitude
+        lon: Longitude
+
+    Returns:
+        Dictionary with agroclimatic indicator values
+    """
+    print(f"  🌍 Fetching sis-agroclimatic data for location ({lat}, {lon})")
+
+    # Step 1: Download the data
+    data_file = fetch_sis_agroclimatic_indicators(
+        origin=config.SIS_AGROCLIMATIC_ORIGIN,
+        experiment=config.SIS_AGROCLIMATIC_EXPERIMENT,
+        temporal_aggregation=config.SIS_AGROCLIMATIC_TEMPORAL_AGGREGATION,
+        periods=config.SIS_AGROCLIMATIC_PERIODS,
+        versions=config.SIS_AGROCLIMATIC_VERSIONS,
+        variables=config.SIS_AGROCLIMATIC_VARIABLES
+    )
+
+    if not data_file:
+        print("  ❌ Download failed")
+        return {var: None for var in config.SIS_AGROCLIMATIC_VARIABLES}
+
+    # Step 2: Process the data for the location
+    try:
+        results = process_sis_agroclimatic_data(data_file, lat, lon)
+
+        # Clean up the downloaded file
+        try:
+            os.unlink(data_file)
+            print(f"  🧹 Cleaned up temporary file: {os.path.basename(data_file)}")
+        except:
+            pass  # Ignore cleanup errors
+
+        return results
+
+    except Exception as e:
+        print(f"  ❌ Processing failed: {e}")
+        return {var: None for var in config.SIS_AGROCLIMATIC_VARIABLES}
+
+
+def fetch_copernicus_climate_data(
+    lat: float,
+    lon: float,
+    start_year: str = '1981',
+    end_year: str = '2010',
+    variables: Optional[List[str]] = None,
+    retry_count: int = 0
+) -> Dict[str, Optional[float]]:
+    """
+    Fetch Copernicus ERA5 reanalysis data for a specific location and time period
+
+    ERA5 provides high-quality, consistent historical climate data for cross-validation.
+
+    Args:
+        lat: Latitude
+        lon: Longitude
+        start_year: Start year for data
+        end_year: End year for data
+        variables: List of variables to fetch (uses config defaults if None)
+        retry_count: Current retry attempt
+
+    Returns:
+        Dictionary mapping variable names to climatology values
+    """
+    if not config.COPERNICUS_ENABLED:
+        return {v: None for v in (variables or config.COPERNICUS_VARIABLES)}
+
+    if variables is None:
+        variables = config.COPERNICUS_VARIABLES
+
+    try:
+        import cdsapi
+        import tempfile
+        import xarray as xr
+        import numpy as np
+
+        # Initialize CDS client
+        c = cdsapi.Client()
+
+        # Convert coordinates to grid bounds (ERA5 resolution is ~0.25°)
+        # Find the grid cell containing the point
+        grid_size = 0.25
+        lat_min = np.floor(lat / grid_size) * grid_size
+        lat_max = lat_min + grid_size
+        lon_min = np.floor(lon / grid_size) * grid_size
+        lon_max = lon_min + grid_size
+
+        # Ensure longitude is in 0-360 range for CDS if needed
+        if lon_min < 0:
+            lon_min += 360
+        if lon_max < 0:
+            lon_max += 360
+
+        # Create temporary file for download
+        with tempfile.NamedTemporaryFile(suffix='.nc', delete=False) as temp_file:
+            temp_filename = temp_file.name
+
+        # Build ERA5 CDS request
+        years = [str(y) for y in range(int(start_year), int(end_year) + 1)]
+        months = [f"{m:02d}" for m in range(1, 13)]
+
+        request = {
+            'product_type': config.COPERNICUS_ERA5_PRODUCT_TYPE,
+            'variable': variables,
+            'year': years,
+            'month': months,
+            'time': config.COPERNICUS_ERA5_TIME,
+            'area': [lat_max, lon_min, lat_min, lon_max],  # North, West, South, East
+            'format': 'netcdf'
+        }
+
+        # Download data
+        time.sleep(config.COPERNICUS_RATE_LIMIT_DELAY)
+        c.retrieve(config.COPERNICUS_DATASET, request, temp_filename)
+
+        # Process NetCDF data
+        ds = xr.open_dataset(temp_filename)
+
+        results = {}
+        for var in variables:
+            if var in ds.variables:
+                # Calculate climatology (mean over time and space for the grid cell)
+                data = ds[var].mean(dim=['latitude', 'longitude', 'time']).values
+
+                # Convert units if needed
+                if 'temperature' in var.lower():
+                    # Convert from Kelvin to Celsius
+                    data = data - 273.15
+                elif var == 'total_precipitation':
+                    # Convert from meters to mm/day (ERA5 total_precipitation is in meters)
+                    # Monthly total, so divide by number of days to get daily average
+                    days_in_period = (int(end_year) - int(start_year) + 1) * 365.25
+                    data = (data / days_in_period) * 1000  # Convert to mm/day
+
+                results[var] = float(data)
+            else:
+                results[var] = None
+
+        # Clean up
+        ds.close()
+        os.unlink(temp_filename)
+
+        return results
+
+    except ImportError:
+        print("Warning: xarray not available for Copernicus data processing")
+        return {v: None for v in variables}
+    except Exception as e:
+        if retry_count < config.MAX_RETRIES:
+            wait_time = config.RETRY_BACKOFF_FACTOR ** retry_count
+            print(f"  Copernicus API error, retrying in {wait_time}s: {e}")
+            time.sleep(wait_time)
+            return fetch_copernicus_climate_data(
+                lat, lon, start_year, end_year, variables, retry_count + 1
+            )
+        else:
+            print(f"Copernicus API failed after {config.MAX_RETRIES} retries: {e}")
+            return {v: None for v in variables}
+
+
+def aggregate_copernicus_models(
+    lat: float,
+    lon: float,
+    start_year: str = '1981',
+    end_year: str = '2010',
+    variables: Optional[List[str]] = None
+) -> Dict[str, Optional[float]]:
+    """
+    Fetch Copernicus ERA5 data (single reanalysis product)
+
+    Since ERA5 is a single reanalysis rather than an ensemble of models,
+    this function simply calls fetch_copernicus_climate_data directly.
+
+    Args:
+        lat: Latitude
+        lon: Longitude
+        start_year: Start year for data
+        end_year: End year for data
+        variables: Variables to fetch
+
+    Returns:
+        Dictionary with ERA5 climatology values
+    """
+    if not config.COPERNICUS_ENABLED:
+        return {v: None for v in (variables or config.COPERNICUS_VARIABLES)}
+
+    # For ERA5, we just fetch the single reanalysis product
+    return fetch_copernicus_climate_data(lat, lon, start_year, end_year, variables)
+
+
+def calculate_copernicus_extreme_heat_days(
+    copernicus_data: Dict[str, Optional[float]],
+    threshold: float = 35.0
+) -> Optional[float]:
+    """
+    Estimate extreme heat days from Copernicus ERA5 temperature data
+
+    Note: This is a simplified calculation using monthly means.
+    In practice, you'd need daily data to count days above threshold.
+
+    Args:
+        copernicus_data: Copernicus ERA5 climatology data
+        threshold: Temperature threshold for extreme heat (°C)
+
+    Returns:
+        Estimated annual extreme heat days or None
+    """
+    # Check for maximum temperature variable (ERA5 naming)
+    max_temp_var = 'maximum_2m_temperature_since_previous_post_processing'
+    if max_temp_var not in copernicus_data or copernicus_data[max_temp_var] is None:
+        # Fallback to 2m temperature if max not available
+        temp_var = '2m_temperature'
+        if temp_var not in copernicus_data or copernicus_data[temp_var] is None:
+            return None
+        avg_temp = copernicus_data[temp_var]
+    else:
+        avg_temp = copernicus_data[max_temp_var]
+
+    if avg_temp > threshold:
+        # Rough estimation: if average temp is above threshold,
+        # assume some portion of days exceed it
+        excess_temp = avg_temp - threshold
+        estimated_days = min(365, excess_temp * 8)  # Adjusted scaling factor for ERA5
+        return estimated_days
+
+    return 0.0
+
+
+def calculate_copernicus_drought_index(
+    copernicus_data: Dict[str, Optional[float]]
+) -> Optional[float]:
+    """
+    Calculate a simple drought index from Copernicus ERA5 precipitation data
+
+    Args:
+        copernicus_data: Copernicus ERA5 climatology data
+
+    Returns:
+        Drought index (1-5 scale, where 5 is most severe drought) or None
+    """
+    precip_var = 'total_precipitation'
+    if precip_var not in copernicus_data or copernicus_data[precip_var] is None:
+        return None
+
+    avg_daily_precip = copernicus_data[precip_var]  # Already converted to mm/day
+
+    # Simple classification based on precipitation amount for tropical regions
+    # ERA5 precipitation is in mm/day, so these thresholds are appropriate
+    if avg_daily_precip < 2.0:  # Very dry (<2mm/day)
+        return 5.0
+    elif avg_daily_precip < 3.0:  # Dry (<3mm/day)
+        return 4.0
+    elif avg_daily_precip < 4.0:  # Moderate drought (<4mm/day)
+        return 3.0
+    elif avg_daily_precip < 5.0:  # Normal (<5mm/day)
+        return 2.0
+    else:  # Wet (≥5mm/day)
+        return 1.0
+
+
+def calculate_agroclimatic_indicators_from_era5(
+    copernicus_data: Dict[str, Optional[float]]
+) -> Dict[str, Optional[float]]:
+    """
+    Calculate agroclimatic indicators similar to sis-agroclimatic-indicators dataset
+    from ERA5 data. This provides the sugarcane-specific indicators originally requested.
+
+    Based on the sis-agroclimatic-indicators variables:
+    - frost_days: Days with min temp < 0°C
+    - summer_days: Days with max temp > 25°C (heat stress for sugarcane)
+    - tropical_nights: Nights with min temp > 20°C (heat stress)
+    - heavy_precipitation_days: Days with >10mm rain (flood risk)
+    - very_heavy_precipitation_days: Days with >20mm rain
+    - wet_days: Days with >1mm precipitation
+    - precipitation_sum: Total annual precipitation
+    - biologically_effective_degree_days: GDD for sugarcane
+
+    Args:
+        copernicus_data: ERA5 climatology data
+
+    Returns:
+        Dictionary with calculated agroclimatic indicators
+    """
+    indicators = {}
+
+    # Get base variables
+    max_temp = copernicus_data.get('maximum_2m_temperature_since_previous_post_processing')
+    min_temp = copernicus_data.get('minimum_2m_temperature_since_previous_post_processing')
+    mean_temp = copernicus_data.get('2m_temperature')
+    precip = copernicus_data.get('total_precipitation')  # mm/day
+
+    # 1. Frost days (days with min temp < 0°C)
+    # For sugarcane regions, frost is rare but devastating
+    if min_temp is not None:
+        # Estimate based on how much colder winters get relative to mean
+        # Sugarcane regions rarely have frost, but we can estimate risk
+        frost_risk = max(0, 5 - min_temp)  # Rough estimation
+        indicators['frost_days'] = min(frost_risk * 10, 365)  # Scale to annual days
+    else:
+        indicators['frost_days'] = None
+
+    # 2. Summer days (days with max temp > 25°C)
+    # Heat stress threshold for sugarcane
+    if max_temp is not None:
+        if max_temp > 25:
+            # Estimate days above threshold based on temperature excess
+            excess_temp = max_temp - 25
+            indicators['summer_days'] = min(excess_temp * 15, 365)  # Rough scaling
+        else:
+            indicators['summer_days'] = 0
+    else:
+        indicators['summer_days'] = None
+
+    # 3. Tropical nights (nights with min temp > 20°C)
+    # Heat stress indicator - warm nights prevent recovery
+    if min_temp is not None:
+        if min_temp > 20:
+            indicators['tropical_nights'] = 365  # All nights are tropical
+        elif min_temp > 15:
+            # Estimate based on temperature
+            indicators['tropical_nights'] = (min_temp - 15) * 50
+        else:
+            indicators['tropical_nights'] = 0
+    else:
+        indicators['tropical_nights'] = None
+
+    # 4. Precipitation-based indicators
+    if precip is not None:
+        # Heavy precipitation days (>10mm/day)
+        # Assume some days have heavy rain if average is high enough
+        if precip > 5:  # If average >5mm/day, likely some heavy rain days
+            indicators['heavy_precipitation_days'] = min(precip * 2, 100)  # Rough estimate
+        else:
+            indicators['heavy_precipitation_days'] = 0
+
+        # Very heavy precipitation days (>20mm/day)
+        if precip > 8:
+            indicators['very_heavy_precipitation_days'] = min(precip * 0.5, 50)
+        else:
+            indicators['very_heavy_precipitation_days'] = 0
+
+        # Wet days (days with >1mm precipitation)
+        # Estimate based on average precipitation
+        if precip > 0:
+            # Rough estimate: if average is X mm/day, assume Y days are wet
+            indicators['wet_days'] = min(precip * 10, 365)
+        else:
+            indicators['wet_days'] = 0
+
+        # Precipitation sum (annual total in mm)
+        indicators['precipitation_sum'] = precip * 365  # Convert daily to annual
+    else:
+        indicators['heavy_precipitation_days'] = None
+        indicators['very_heavy_precipitation_days'] = None
+        indicators['wet_days'] = None
+        indicators['precipitation_sum'] = None
+
+    # 5. Biologically effective degree days (for sugarcane)
+    # Sugarcane GDD calculation with base temp ~10°C
+    if mean_temp is not None:
+        base_temp = 10.0  # Base temperature for sugarcane
+        if mean_temp > base_temp:
+            # Simplified annual GDD calculation
+            indicators['biologically_effective_degree_days'] = (mean_temp - base_temp) * 365
+        else:
+            indicators['biologically_effective_degree_days'] = 0
+    else:
+        indicators['biologically_effective_degree_days'] = None
+
+    # 6. Additional sugarcane-relevant indicators
+    if mean_temp is not None:
+        # Mean of daily mean temperature
+        indicators['mean_of_daily_mean_temperature'] = mean_temp
+
+    if max_temp is not None:
+        # Mean of daily maximum temperature
+        indicators['mean_of_daily_maximum_temperature'] = max_temp
+
+    if min_temp is not None:
+        # Mean of daily minimum temperature
+        indicators['mean_of_daily_minimum_temperature'] = min_temp
+
+    return indicators

@@ -61,6 +61,12 @@ NASA_POWER_TIMEOUT = 30
 NASA_POWER_RATE_LIMIT_DELAY = 0.5  # seconds between requests
 NASA_POWER_ENABLED = True  # Enabled for enhanced climate risk assessment
 
+# Copernicus Climate Data Store (CDS) API (Phase 3 implementation)
+COPERNICUS_ENABLED = False  # Disabled - ERA5 download is too large for current needs
+COPERNICUS_TIMEOUT = 300  # 5 minutes for large downloads
+COPERNICUS_RATE_LIMIT_DELAY = 2.0  # seconds between requests
+COPERNICUS_DATASET = "reanalysis-era5-single-levels-monthly-means"  # ERA5 reanalysis (if enabled)
+
 # NASA POWER Variables to fetch
 # See docs/DATA_SOURCES.md for detailed descriptions
 NASA_POWER_VARIABLES = [
@@ -155,6 +161,8 @@ CONFIDENCE_WEIGHTS = {
     'nasa_power_cdd': 15,        # When implemented
     'nasa_power_extreme_heat': 10,  # When implemented
     'firms_wildfire': 5,          # When implemented
+    'copernicus_temperature': 15,    # When implemented
+    'copernicus_precipitation': 15,  # When implemented
 }
 
 # Data Quality Thresholds
